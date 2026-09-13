@@ -19,7 +19,7 @@ Trae CN 已切换为积分计费，本脚本每天自动为配置中的每个账
   设备时，只有该设备所属账号能领取成功，其它账号会被服务端以 code=9095（设备当日已被占用）
   或 code=9074（设备未登记/冲突，文案常为「当前参与用户太多」）拒绝。
 - 网页会话模式（session，推荐多账号）：用 X-Cloudide-Session 换取 JWT 后，随机 16 位设备
-  即可签到（实测 code=0）。9074 为偶发风控，脚本会自动换随机设备重试 2 次。
+  即可签到（实测 code=0）。9074 为偶发风控，脚本会自动换随机设备重试 5 次。
 - 长效登录 Cookie（sessionid，推荐）：配置后每次运行先调 /cloudide/api/v3/trae/Login
   自动刷新 X-Cloudide-Session（与浏览器打开 trae.cn 的续期链路一致）。实测只需
   `sessionid` 一个 Cookie 即可刷新，约 60 天不失效；配了它就不再需要手工更新 session。
@@ -63,6 +63,8 @@ JITTER_MAX_SECONDS = int(os.environ.get('TRAE_JITTER_MAX', '600'))
 
 # 领取接口设备类错误码：9074 设备未登记/冲突；9095 设备当日已用于其它账号签到
 DEVICE_CONFLICT_CODES = {9074, 9095}
+# 网页会话模式 9074 偶发风控的换随机设备重试次数
+WEB_9074_RETRY = 5
 # 9074：设备未登记或伪造（文案「当前参与用户太多」）；9095：共享设备今日已被其它账号占用
 DEVICE_MISSING_HINT = (
     "签到被设备校验拒绝（code={code}: {message}）。Trae CN 领取积分必须使用该账号"
@@ -318,13 +320,14 @@ class TraeTasks:
             checkin = api.claim_checkin()
 
             # 网页会话模式：9074 为偶发风控（实测随机设备可签到，见 web_checkin.py 验证），
-            # 换全新随机设备重试 2 次；桌面令牌模式 9074 是真实设备错误，不重试
+            # 换全新随机设备重试 WEB_9074_RETRY 次；桌面令牌模式 9074 是真实设备错误，不重试
             if (not checkin['success'] and checkin.get('code') == 9074
                     and mode == '网页会话'):
-                for attempt in range(2):
+                for attempt in range(WEB_9074_RETRY):
                     retry_device = str(random.randint(10 ** 15, 10 ** 16 - 1))
                     self.logger.info(
-                        f"🔄 {account_name} 9074 偶发风控，换随机设备重试 ({attempt + 1}/2)")
+                        f"🔄 {account_name} 9074 偶发风控，换随机设备重试 "
+                        f"({attempt + 1}/{WEB_9074_RETRY})")
                     retry_api = TraeWebAPI(
                         session=str(account_info.get('session') or ''),
                         device_id=retry_device)
