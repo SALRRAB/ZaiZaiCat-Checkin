@@ -539,6 +539,10 @@ def convert_account(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         'account_name': account_name,
         'access_token': access_token,
     }
+    # email 供 account_identity 在无 uid 时按邮箱去重（官方与 cockpit 同账号昵称可能不同）
+    email = raw.get('email')
+    if email:
+        account['email'] = email
 
     # 可选字段仅在有值时写入，避免配置中出现大量空串
     for key in ('refresh_token', 'uid', 'enterprise_id', 'domain'):
@@ -641,16 +645,18 @@ def collect_accounts(quiet: bool = False) -> List[Dict[str, Any]]:
         raw_accounts.extend(official)
 
     accounts: List[Dict[str, Any]] = []
-    seen = set()
+    seen: Dict[str, int] = {}
     for raw in raw_accounts:
         converted = convert_account(raw)
         if not converted:
             continue
         identity = account_identity(converted)
         if identity and identity in seen:
+            # 官方客户端在最后处理，同身份冲突时以其最新令牌覆盖 cockpit 侧账号
+            accounts[seen[identity]] = converted
             continue
         if identity:
-            seen.add(identity)
+            seen[identity] = len(accounts)
         accounts.append(converted)
 
     return accounts
@@ -680,16 +686,17 @@ def main():
         print(f"📂 来源: {source}")
 
         accounts: List[Dict[str, Any]] = []
-        seen = set()
+        seen: Dict[str, int] = {}
         for raw in raw_accounts:
             converted = convert_account(raw)
             if not converted:
                 continue
             identity = account_identity(converted)
             if identity and identity in seen:
+                accounts[seen[identity]] = converted
                 continue
             if identity:
-                seen.add(identity)
+                seen[identity] = len(accounts)
             accounts.append(converted)
     else:
         print("🔍 正在自动探测官方 WorkBuddy 客户端与 cockpit-tools 数据目录...")

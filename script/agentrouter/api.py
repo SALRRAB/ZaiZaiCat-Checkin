@@ -23,6 +23,7 @@ Agent Router（ps.air-outer.com，原域名 agentrouter.org）签到 API 模块
 import base64
 import html
 import logging
+import os
 import re
 import ssl
 import tempfile
@@ -138,9 +139,11 @@ def build_ca_bundle() -> Optional[str]:
         return None
 
     try:
-        path = Path(tempfile.gettempdir()) / 'agentrouter_ca_bundle.pem'
-        path.write_text('\n'.join(parts), encoding='ascii')
-        return str(path)
+        # 唯一临时文件（mkstemp 默认 0600 权限），避免可预测路径被劫持与普通覆盖竞态
+        fd, path = tempfile.mkstemp(prefix='agentrouter_ca_bundle_', suffix='.pem')
+        os.close(fd)
+        Path(path).write_text('\n'.join(parts), encoding='ascii')
+        return path
     except Exception as exc:
         logger.debug(f'写入 CA 合并文件失败: {exc}')
         return None

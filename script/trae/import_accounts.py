@@ -23,10 +23,8 @@ import argparse
 import base64
 import json
 import os
-import random
 import re
 import sys
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -258,9 +256,12 @@ def scan_client_device_pairs() -> Dict[str, str]:
             region = 'CN' if 'api.trae.cn' in host else ('SG' if 'api.trae.ai' in host else '')
         return region == 'CN'
 
-    # 主目录（无 _ 后缀）上的机器级共享设备集合
+    # 主目录（无 _ 后缀）上的机器级共享设备集合；带后缀的实例目录拥有独立设备，
+    # 若计入会把实例设备误判为共享设备而跳过配对
     machine_devices: set = set()
-    for _, storage_path in find_local_client_storage_paths():
+    for dir_name, storage_path in find_local_client_storage_paths():
+        if '_' in dir_name:
+            continue
         auth = _read_storage_key_value(storage_path, AUTH_STORAGE_KEY)
         if not auth or not _region_ok(auth):
             continue
@@ -519,11 +520,9 @@ def _merge_best_expires(account: Dict[str, Any], best_expires: Dict[str, int]) -
     identity = account_identity(account)
     expires = account.get('expires_at')
     if expires is None:
-        # 无法比较时保留既有最佳候选，仅当尚无候选时采纳
-        if identity not in best_expires:
-            best_expires[identity] = -1
-            return True
-        return False
+        # 无法比较时采纳后出现的候选（官方客户端最后处理，同身份时优先其最新令牌）
+        best_expires[identity] = -1
+        return True
     prev = best_expires.get(identity, -1)
     if expires >= prev:
         best_expires[identity] = expires
@@ -735,14 +734,16 @@ def extract_local_icdrs_device_id() -> Optional[str]:
 
 def get_or_create_device_id(config_dir: Optional[Path] = None) -> str:
     """
-    获取签到用设备 ID：优先本机 Trae 客户端注册的 ICDRS 设备 ID，
-    其次读取已持久化 ID，都没有时生成一次并持久化。
+    获取签到用设备 ID：优先本机 Trae 客户端注册的 ICDRS 设备 ID，其次读取已持久化 ID。
+
+    签到接口要求该账号注册的 16 位 ICDRS 数字设备 ID，伪造/随机值会稳定触发 code=9074，
+    因此本机与持久化均无有效设备时不构造假 ID，如实返回空串交由上层提示处理。
 
     Args:
         config_dir (Optional[Path]): 设备 ID 文件所在目录，默认项目 config 目录
 
     Returns:
-        str: 设备 ID
+        str: 设备 ID；无可验证设备时返回空串
     """
     base_dir = Path(config_dir) if config_dir else project_root / "config"
     path = base_dir / DEVICE_ID_FILE
@@ -764,18 +765,12 @@ def get_or_create_device_id(config_dir: Optional[Path] = None) -> str:
 
     try:
         persisted = path.read_text(encoding='utf-8').strip()
-        if persisted:
+        if persisted.isdigit():
             return persisted
     except OSError:
         pass
 
-    device_id = f"{int(time.time() * 1000)}_{random.randint(0, 2**32 - 1)}"
-    try:
-        base_dir.mkdir(parents=True, exist_ok=True)
-        path.write_text(device_id, encoding='utf-8')
-    except OSError:
-        pass
-    return device_id
+    return ''
 
 
 def read_device_id(config_dir: Optional[Path] = None) -> str:

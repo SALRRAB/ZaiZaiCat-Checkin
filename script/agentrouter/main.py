@@ -160,11 +160,14 @@ class AgentRouterTasks:
             return result
 
         summary = self._describe_user(api, login['session'])
-        result['success'] = True
+        # checked_in 为服务端下发的「今日已签到」标记：同日重复登录仍为 true 且不重复
+        # 发放额度，仅它以真值计为签到成功，其余情况如实标失败以便人工确认
+        checked_in = bool(login.get('checked_in'))
+        result['checked_in'] = checked_in
         result['mode'] = login.get('mode', '')
-        result['checked_in'] = login.get('checked_in')
-        result['message'] = ('签到成功，新增额度已到账' if login.get('checked_in')
-                             else '登录成功（今日签到状态：未标记到账）')
+        result['success'] = checked_in
+        result['message'] = ('登录成功，今日已签到' if checked_in
+                             else '登录成功但未标记签到到账（今日已签到或额度未发放），请人工确认')
         if summary.get('success'):
             result['quota_usd'] = summary.get('quota_usd')
             result['display_name'] = summary.get('display_name')
