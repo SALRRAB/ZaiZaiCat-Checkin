@@ -53,55 +53,25 @@ DEFAULT_USER_AGENT = (
 DEFAULT_QUOTA_PER_UNIT = 500000
 
 
-def parse_cookie_string(cookie_str: str) -> Dict[str, str]:
+def build_github_cookies(session_value: str = '') -> Dict[str, str]:
     """
-    解析 Cookie 请求头字符串为字典
+    由 user_session 值构造请求 github.com 使用的 cookie 字典
+
+    GitHub 校验登录态时同时参考 logged_in / __Host-user_session_same_site
+    两个标记，脚本据此自动补齐，配置只需提供 user_session 一个值。
 
     Args:
-        cookie_str (str): "name=value; name2=value2" 形式的 Cookie 串
+        session_value (str): github.com 的 user_session cookie 值
 
     Returns:
         Dict[str, str]: cookie 名值对
     """
     cookies: Dict[str, str] = {}
-    for part in (cookie_str or '').split(';'):
-        part = part.strip()
-        if not part or '=' not in part:
-            continue
-        name, value = part.split('=', 1)
-        cookies[name.strip()] = value.strip()
-    return cookies
-
-
-def build_github_cookies(github_cookies: Any = None, github_session: str = '') -> Dict[str, str]:
-    """
-    构造请求 github.com 使用的 cookie 字典
-
-    两种配置形式，按优先级：
-    1. github_cookies: 完整 Cookie 串或 dict（推荐，直接复制浏览器请求头即可）
-    2. github_session: 仅 user_session 的值（脚本补齐 logged_in 标记）
-
-    Args:
-        github_cookies (Any): Cookie 字符串或字典
-        github_session (str): github.com 的 user_session cookie 值
-
-    Returns:
-        Dict[str, str]: cookie 名值对
-    """
-    if isinstance(github_cookies, dict):
-        cookies = dict(github_cookies)
-    elif github_cookies:
-        cookies = parse_cookie_string(str(github_cookies))
-    else:
-        cookies = {}
-
-    session_value = (github_session or '').strip()
-    if session_value and 'user_session' not in cookies:
+    session_value = (session_value or '').strip()
+    if session_value:
         cookies['user_session'] = session_value
-        # GitHub 校验登录态时会同时参考这两个标记
         cookies.setdefault('logged_in', 'yes')
         cookies.setdefault('__Host-user_session_same_site', session_value)
-
     return cookies
 
 
@@ -154,7 +124,6 @@ class AgentRouterAPI:
 
     def __init__(self,
                  base_url: str = '',
-                 github_cookies: Any = None,
                  github_session: str = '',
                  user_id: str = '',
                  proxy: str = '',
@@ -163,15 +132,14 @@ class AgentRouterAPI:
         """
         Args:
             base_url (str): 站点地址，默认 https://ps.air-outer.com
-            github_cookies (Any): github.com 登录态，Cookie 串或字典
-            github_session (str): github.com 的 user_session 值（github_cookies 缺失时使用）
-            user_id (str): 站点用户 ID，用于 new-api-user 请求头（查余额必需）
+            github_session (str): github.com 的 user_session 值
+            user_id (str): 站点用户 ID，用于 new-api-user 请求头（登录响应自动获取）
             proxy (str): 代理地址，如 http://127.0.0.1:7890；留空则沿用环境变量
             verify (Any): TLS 校验，留空自动合并系统根证书；可填证书路径或 False
             timeout (int): 请求超时时间（秒）
         """
         self.base_url = (base_url or DEFAULT_BASE_URL).rstrip('/')
-        self.github_cookies = build_github_cookies(github_cookies, github_session)
+        self.github_cookies = build_github_cookies(github_session)
         self.user_id = str(user_id or '').strip()
         self.timeout = timeout
         self.verify = verify
@@ -352,7 +320,7 @@ class AgentRouterAPI:
             location = resp.headers.get('Location') or ''
             if location.startswith(f'{GITHUB_HOST}/login'):
                 raise RuntimeError(
-                    'GitHub 登录态无效或已过期，请更新配置中的 github_cookies / github_session')
+                    'GitHub 登录态无效或已过期，请更新配置中的 github_session')
             raise RuntimeError(f'GitHub 授权未返回 code，跳转地址: {location[:200]}')
 
         # 200：首次授权需要确认，自动提交同意表单
@@ -362,7 +330,7 @@ class AgentRouterAPI:
 
         if '/login' in resp.url or 'Sign in to GitHub' in resp.text:
             raise RuntimeError(
-                'GitHub 登录态无效或已过期，请更新配置中的 github_cookies / github_session')
+                'GitHub 登录态无效或已过期，请更新配置中的 github_session')
         raise RuntimeError(
             '未能从 GitHub 获取授权码，请在浏览器中手动授权一次该应用后重试，'
             f'或检查账号是否开启了额外验证。授权地址: {resp.url[:200]}')
@@ -394,7 +362,7 @@ class AgentRouterAPI:
         if not self.github_cookies:
             return {
                 'success': False,
-                'error': '缺少 GitHub 登录态，请在配置中填写 github_cookies 或 github_session',
+                'error': '缺少 GitHub 登录态，请在配置中填写 github_session',
                 'error_type': 'missing_credential',
             }
 

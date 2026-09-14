@@ -13,7 +13,7 @@ Agent Router（ps.air-outer.com）每日签到脚本
 
     站点 /api/oauth/state -> GitHub 授权换 code -> 站点 /api/oauth/github 登录 -> 额度到账
 
-GitHub 登录态由配置提供（github_cookies 或 github_session），不读取任何浏览器数据。
+GitHub 登录态由配置提供（github_session），不读取任何浏览器数据。
 GitHub 回调域名为 agentrouter.org（境内不通），脚本只从其跳转地址中提取 code，
 随后统一用配置中的 base_url（默认 https://ps.air-outer.com）完成登录。
 
@@ -23,7 +23,7 @@ GitHub 回调域名为 agentrouter.org（境内不通），脚本只从其跳转
     "accounts": [
       {
         "account_name": "erma0",
-        "github_cookies": "user_session=xxx; __Host-user_session_same_site=xxx; logged_in=yes"
+        "github_session": "GitHub 登录后的 user_session 值"
       }
     ]
   }
@@ -98,7 +98,6 @@ class AgentRouterTasks:
     def _build_api(self, account_info: Dict[str, Any]) -> AgentRouterAPI:
         return AgentRouterAPI(
             base_url=account_info.get('base_url') or DEFAULT_BASE_URL,
-            github_cookies=account_info.get('github_cookies'),
             github_session=account_info.get('github_session') or '',
             user_id=account_info.get('user_id') or '',
             proxy=account_info.get('proxy') or '',
@@ -187,7 +186,7 @@ class AgentRouterTasks:
             self.logger.info('[dry-run] 仅校验配置，不执行登录')
             for index, account in enumerate(self.accounts):
                 name = account.get('account_name') or f'账号{index + 1}'
-                has_github = bool(account.get('github_cookies') or account.get('github_session'))
+                has_github = bool(account.get('github_session'))
                 self.logger.info(f'{name}: GitHub登录态={has_github}')
             return
 

@@ -36,7 +36,7 @@ GitHub OAuth App 注册的回调域名是 `agentrouter.org`（境内不可达）
     "accounts": [
       {
         "account_name": "erma0",
-        "github_cookies": "user_session=xxx; __Host-user_session_same_site=xxx; logged_in=yes"
+        "github_session": "GitHub 登录后的 user_session 值"
       }
     ]
   }
@@ -46,8 +46,7 @@ GitHub OAuth App 注册的回调域名是 `agentrouter.org`（境内不可达）
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `account_name` | 否 | 备注名，仅用于日志和通知展示 |
-| `github_cookies` | 二选一 | github.com 的完整 Cookie 串（推荐）或 cookie 字典 |
-| `github_session` | 二选一 | 仅 `user_session` 的值，脚本自动补齐 `logged_in` 等标记 |
+| `github_session` | 是 | GitHub 登录后的 `user_session` 值，脚本自动补齐 `logged_in` 等标记 |
 
 其余字段（`base_url`、`user_id`、`proxy`、`verify` 等）均为可选项：站点地址默认内置
 `https://ps.air-outer.com`；用户 ID 在登录响应中自动获取，查询余额无需填写
@@ -91,7 +90,7 @@ python script/agentrouter/main.py --dry-run   # 仅校验配置
 
 **提示 GitHub 登录态无效或已过期**
 
-浏览器重新登录 github.com，按上文步骤重新复制 Cookie 到 `github_cookies`。
+浏览器重新登录 github.com，按上文步骤重新复制 `user_session` 到 `github_session`。
 
 ## 说明
 
