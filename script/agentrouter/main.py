@@ -23,8 +23,7 @@ GitHub 回调域名为 agentrouter.org（境内不通），脚本只从其跳转
     "accounts": [
       {
         "account_name": "erma0",
-        "github_cookies": "user_session=xxx; __Host-user_session_same_site=xxx; logged_in=yes",
-        "base_url": "https://ps.air-outer.com"
+        "github_cookies": "user_session=xxx; __Host-user_session_same_site=xxx; logged_in=yes"
       }
     ]
   }

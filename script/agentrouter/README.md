@@ -36,8 +36,7 @@ GitHub OAuth App 注册的回调域名是 `agentrouter.org`（境内不可达）
     "accounts": [
       {
         "account_name": "erma0",
-        "github_cookies": "user_session=xxx; __Host-user_session_same_site=xxx; logged_in=yes",
-        "base_url": "https://ps.air-outer.com"
+        "github_cookies": "user_session=xxx; __Host-user_session_same_site=xxx; logged_in=yes"
       }
     ]
   }
