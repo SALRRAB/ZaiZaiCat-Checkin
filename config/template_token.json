@@ -192,5 +192,21 @@
         "domain": ""
       }
     ]
+  },
+  "trae": {
+    "accounts": [
+      {
+        "account_name": "主号",
+        "sessionid": "浏览器 Cookie 的 sessionid 值"
+      }
+    ]
+  },
+  "agentrouter": {
+    "accounts": [
+      {
+        "account_name": "主号",
+        "github_session": "GitHub 登录后的 user_session 值"
+      }
+    ]
   }
 }

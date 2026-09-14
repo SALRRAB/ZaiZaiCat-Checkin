@@ -537,9 +537,12 @@ def convert_account(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     account: Dict[str, Any] = {
         'account_name': account_name,
-        'email': raw.get('email', ''),
         'access_token': access_token,
     }
+    # email 供 account_identity 在无 uid 时按邮箱去重（官方与 cockpit 同账号昵称可能不同）
+    email = raw.get('email')
+    if email:
+        account['email'] = email
 
     # 可选字段仅在有值时写入，避免配置中出现大量空串
     for key in ('refresh_token', 'uid', 'enterprise_id', 'domain'):
@@ -617,7 +620,9 @@ def collect_accounts(quiet: bool = False) -> List[Dict[str, Any]]:
     """
     自动探测本机账号来源并采集账号（已转换、去重）
 
-    来源优先级：官方 WorkBuddy 客户端（当前登录账号）→ cockpit-tools 数据目录（全部账号）
+    来源顺序：cockpit-tools 数据目录（全部账号）→ 官方 WorkBuddy 客户端（当前登录账号）。
+    官方客户端放在最后处理：其令牌来自用户最近一次登录会话（服务端单会话策略下
+    旧的 refresh 链已作废），同 uid 时后处理的官方令牌会覆盖 cockpit 侧的失效令牌。
 
     Args:
         quiet (bool): True 时不输出来源提示
@@ -628,59 +633,33 @@ def collect_accounts(quiet: bool = False) -> List[Dict[str, Any]]:
     log = (lambda *a, **k: None) if quiet else print
     raw_accounts: List[Dict[str, Any]] = []
 
-    official = load_accounts_from_official_client(quiet=quiet)
-    if official:
-        log("📂 来源: 官方 WorkBuddy 客户端 (发现 1 个账号)")
-        raw_accounts.extend(official)
-
     for candidate in find_cockpit_data_dirs():
         found = load_accounts_from_dir(candidate, quiet=quiet)
         if found:
             log(f"📂 来源: {candidate} (发现 {len(found)} 个账号)")
             raw_accounts.extend(found)
 
+    official = load_accounts_from_official_client(quiet=quiet)
+    if official:
+        log("📂 来源: 官方 WorkBuddy 客户端 (发现 1 个账号)")
+        raw_accounts.extend(official)
+
     accounts: List[Dict[str, Any]] = []
-    seen = set()
+    seen: Dict[str, int] = {}
     for raw in raw_accounts:
         converted = convert_account(raw)
         if not converted:
             continue
         identity = account_identity(converted)
         if identity and identity in seen:
+            # 官方客户端在最后处理，同身份冲突时以其最新令牌覆盖 cockpit 侧账号
+            accounts[seen[identity]] = converted
             continue
         if identity:
-            seen.add(identity)
+            seen[identity] = len(accounts)
         accounts.append(converted)
 
     return accounts
-
-
-def sync_accounts(config_path: Optional[Path] = None, quiet: bool = False) -> Optional[Dict[str, int]]:
-    """
-    从本机 cockpit-tools 同步账号到配置文件（签到前的自动刷新入口）
-
-    自动探测数据目录、读取并解密账号、去重后合并写入配置。
-    任何异常都不抛出，保证不影响签到主流程。
-
-    Args:
-        config_path (Optional[Path]): 配置文件路径，默认项目根目录 config/token.json
-        quiet (bool): True 时不输出任何提示信息
-
-    Returns:
-        Optional[Dict[str, int]]: 同步统计 {'added': n, 'updated': n}；
-                                  未找到 cockpit-tools 或无账号时返回 None
-    """
-    log = (lambda *a, **k: None) if quiet else print
-    try:
-        accounts = collect_accounts(quiet=quiet)
-        if not accounts:
-            return None
-        stats = merge_into_config(accounts, config_path or CONFIG_PATH)
-        log(f"✅ 同步完成: 新增 {stats['added']} 个，更新 {stats['updated']} 个")
-        return stats
-    except Exception as e:
-        log(f"⚠️  同步失败（不影响签到）: {e}")
-        return None
 
 
 def main():
@@ -707,16 +686,17 @@ def main():
         print(f"📂 来源: {source}")
 
         accounts: List[Dict[str, Any]] = []
-        seen = set()
+        seen: Dict[str, int] = {}
         for raw in raw_accounts:
             converted = convert_account(raw)
             if not converted:
                 continue
             identity = account_identity(converted)
             if identity and identity in seen:
+                accounts[seen[identity]] = converted
                 continue
             if identity:
-                seen.add(identity)
+                seen[identity] = len(accounts)
             accounts.append(converted)
     else:
         print("🔍 正在自动探测官方 WorkBuddy 客户端与 cockpit-tools 数据目录...")

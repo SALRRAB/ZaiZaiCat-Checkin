@@ -210,3 +210,6 @@ __marimo__/
 config/token.json
 config/notification.json
 config/*.secret.json
+
+# IDE internal docs
+.trae/
