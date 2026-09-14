@@ -48,14 +48,10 @@ GitHub OAuth App 注册的回调域名是 `agentrouter.org`（境内不可达）
 | `account_name` | 否 | 备注名，仅用于日志和通知展示 |
 | `github_cookies` | 二选一 | github.com 的完整 Cookie 串（推荐）或 cookie 字典 |
 | `github_session` | 二选一 | 仅 `user_session` 的值，脚本自动补齐 `logged_in` 等标记 |
-| `user_id` | 否 | 站点用户 ID，用于 `new-api-user` 请求头；不填则签到照常，只是查不到余额 |
-| `base_url` | 否 | 站点地址，默认 `https://ps.air-outer.com` |
-| `proxy` | 否 | 访问 GitHub 用的代理，如 `http://127.0.0.1:7890`；留空沿用环境变量 |
-| `verify` | 否 | TLS 校验，留空自动合并系统根证书；可填证书路径，或 `false` 跳过校验 |
 
-> `user_id` 获取：登录后 F12 → 网络（Network）→ 任一 `/api/` 请求 → 请求头里的
-> `new-api-user`。站点用它识别用户，缺失时接口会返回「未提供 New-Api-User」。
-> 登录响应若带回用户 ID，脚本会自动补上，无需手动填。
+其余字段（`base_url`、`user_id`、`proxy`、`verify` 等）均为可选项：站点地址默认内置
+`https://ps.air-outer.com`；用户 ID 在登录响应中自动获取，查询余额无需填写
+（手动获取方法：登录后 F12 → Network → 任一 `/api/` 请求 → 请求头 `new-api-user`）。
 
 ### 获取 GitHub 登录态
 
